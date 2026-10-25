@@ -1,0 +1,823 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Urban Cooling | WebGIS Dashboard</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet.fullscreen/Control.FullScreen.css">
+
+<!-- Charts and geospatial calculations -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+
+<!-- Local GeoTIFF rendering -->
+<script src="https://unpkg.com/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
+<script src="https://unpkg.com/georaster-layer-for-leaflet@3.10.0/dist/georaster-layer-for-leaflet.min.js"></script>
+
+<style>
+:root {
+  --navy:#17365d;
+  --blue:#2563eb;
+  --green:#16a34a;
+  --bg:#f1f5f9;
+  --text:#1e293b;
+  --muted:#64748b;
+  --border:#e2e8f0;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  font-family:Arial,sans-serif;
+  color:var(--text);
+  background:var(--bg);
+}
+header {
+  background:var(--navy);
+  color:white;
+  padding:20px 26px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+}
+header h1 { margin:0 0 6px; font-size:24px; }
+header p { margin:0; font-size:13px; color:#dbeafe; }
+.header-tag {
+  border:1px solid #7191b8;
+  padding:8px 12px;
+  border-radius:20px;
+  font-size:12px;
+}
+.container { max-width:1600px; margin:auto; padding:20px; }
+.section-title { font-size:17px; margin:0 0 14px; color:var(--navy); }
+.kpis {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+  margin-bottom:18px;
+}
+.card {
+  background:white;
+  padding:18px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  box-shadow:0 2px 8px #0f172a08;
+  min-width:0;
+}
+.kpi-label { color:var(--muted); font-size:12px; margin-bottom:10px; }
+.kpi-value {
+  font-size:25px;
+  font-weight:700;
+  color:var(--navy);
+  overflow-wrap:anywhere;
+}
+.kpi-note { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5; }
+.workspace {
+  display:grid;
+  grid-template-columns:290px minmax(0,1fr);
+  gap:18px;
+  align-items:start;
+}
+.sidebar,.main-content { display:grid; gap:18px; min-width:0; }
+button {
+  cursor:pointer;
+  border:0;
+  background:var(--blue);
+  color:white;
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+}
+button:hover { filter:brightness(.92); }
+button.secondary { background:#475569; }
+.button-stack { display:grid; gap:9px; }
+.layer-item { border-bottom:1px solid var(--border); padding:12px 0; }
+.layer-item:last-child { border-bottom:0; }
+.layer-label {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+  font-weight:600;
+}
+.layer-label input { accent-color:var(--blue); }
+.layer-item input[type="range"] {
+  width:100%;
+  margin-top:12px;
+  accent-color:var(--blue);
+}
+.small-label {
+  display:flex;
+  justify-content:space-between;
+  color:var(--muted);
+  font-size:11px;
+  margin-top:8px;
+}
+#map {
+  height:590px;
+  width:100%;
+  background:#e2e8f0;
+  border-radius:10px;
+  overflow:hidden;
+}
+.map-caption {
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.6;
+  margin-top:12px;
+}
+.status {
+  padding:12px;
+  border-radius:8px;
+  background:#f1f5f9;
+  border:1px solid var(--border);
+  font-size:12px;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+.status.error { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+.stats-grid {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);
+  gap:18px;
+}
+.chart-wrap { max-width:360px; height:290px; margin:auto; position:relative; }
+.legend-note { font-size:12px; line-height:1.6; color:var(--muted); margin-top:12px; }
+.table-wrap { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:12px; }
+th,td { text-align:left; padding:13px 10px; border-bottom:1px solid var(--border); }
+th { background:#f8fafc; color:#475569; }
+td:last-child,th:last-child { text-align:right; }
+tbody tr:last-child td { border-bottom:0; }
+tr.total-row { background:#f0fdf4; font-weight:700; }
+.footer { color:var(--muted); font-size:11px; line-height:1.7; padding:15px 2px; }
+
+@media(max-width:1050px) {
+  .workspace { grid-template-columns:1fr; }
+  .sidebar { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+  .sidebar .full-width { grid-column:1/-1; }
+}
+@media(max-width:750px) {
+  header { align-items:flex-start; flex-direction:column; }
+  .container { padding:12px; }
+  .kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .kpi-value { font-size:21px; }
+  .sidebar,.stats-grid { grid-template-columns:1fr; }
+  #map { height:55vh; min-height:360px; }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div>
+    <h1>Urban Cooling Monitor</h1>
+    <p>Green Space • Land Surface Temperature • Buffer Analysis</p>
+  </div>
+  <div class="header-tag">WEB-GIS ANALYTICS</div>
+</header>
+
+<div class="container">
+  <h2 class="section-title">Study Area Statistics</h2>
+
+  <section class="kpis">
+    <div class="card">
+      <div class="kpi-label">Study Extent Area</div>
+      <div class="kpi-value" id="totalArea">Calculating...</div>
+      <div class="kpi-note">Rectangular bounding-box estimate</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Area Inside Buffer</div>
+      <div class="kpi-value" id="bufferArea">Loading...</div>
+      <div class="kpi-note">Local buffer vector intersected with study extent</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Area Outside Buffer</div>
+      <div class="kpi-value" id="outsideArea">Loading...</div>
+      <div class="kpi-note">Study extent minus buffer coverage</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Buffer Coverage</div>
+      <div class="kpi-value" id="bufferPercent">Loading...</div>
+      <div class="kpi-note">Percentage of study extent</div>
+    </div>
+  </section>
+
+  <section class="workspace">
+    <aside class="sidebar">
+      <div class="card">
+        <h2 class="section-title">Map Controls</h2>
+        <div class="button-stack">
+          <button onclick="resetMap()">Zoom to Study Area</button>
+          <button onclick="showAllLayers()">Show All Layers</button>
+          <button class="secondary" onclick="hideAllLayers()">Hide All Layers</button>
+          <button class="secondary" onclick="loadStatistics()">Refresh Statistics</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title">Map Layers</h2>
+
+        <div class="layer-item">
+          <label class="layer-label">
+            <input type="checkbox" id="bufferToggle" checked
+              onchange="toggleLayer(bufferLayer,this.checked)">
+            GeoServer Buffer
+          </label>
+          <input type="range" min="0" max="100" value="80"
+            aria-label="GeoServer buffer opacity"
+            oninput="setOpacity(bufferLayer,this.value,event)">
+          <div class="small-label"><span>Opacity</span><span>80%</span></div>
+        </div>
+
+        <div class="layer-item">
+          <label class="layer-label">
+            <input type="checkbox" id="greenToggle" checked
+              onchange="toggleLayer(greenLayer,this.checked)">
+            Green Space (GeoServer)
+          </label>
+          <input type="range" min="0" max="100" value="90"
+            aria-label="Green-space opacity"
+            oninput="setOpacity(greenLayer,this.value,event)">
+          <div class="small-label"><span>Opacity</span><span>90%</span></div>
+        </div>
+
+        <div class="layer-item">
+          <label class="layer-label">
+            <input type="checkbox" id="lstToggle" checked
+              onchange="toggleLayer(lstLayer,this.checked)">
+            LST (GeoServer)
+          </label>
+          <input type="range" min="0" max="100" value="80"
+            aria-label="LST opacity"
+            oninput="setOpacity(lstLayer,this.value,event)">
+          <div class="small-label"><span>Opacity</span><span>80%</span></div>
+        </div>
+
+        <div class="layer-item">
+          <label class="layer-label">
+            <input type="checkbox" id="rasterToggle" checked
+              onchange="toggleLayer(localRasterLayer,this.checked)">
+            Local Raster1.tif
+          </label>
+          <input type="range" min="0" max="100" value="85"
+            aria-label="Local raster opacity"
+            oninput="setRasterOpacity(localRasterLayer,this.value,event)">
+          <div class="small-label"><span>Opacity</span><span>85%</span></div>
+        </div>
+
+        <div class="layer-item">
+          <label class="layer-label">
+            <input type="checkbox" id="localBuffToggle" checked
+              onchange="toggleLayer(localBuffLayer,this.checked)">
+            Local Buff Vector
+          </label>
+          <input type="range" min="0" max="100" value="70"
+            aria-label="Local vector opacity"
+            oninput="setVectorOpacity(localBuffLayer,this.value,event)">
+          <div class="small-label"><span>Opacity</span><span>70%</span></div>
+        </div>
+      </div>
+
+      <div class="card full-width">
+        <h2 class="section-title">Map Information</h2>
+        <div id="status" class="status" role="status" aria-live="polite">
+          Initializing map...
+        </div>
+        <p class="map-caption">
+          Click the map to display coordinates. Use the top-right layer selector
+          to manage overlays.
+        </p>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <section class="card">
+        <h2 class="section-title">Interactive Map</h2>
+        <div id="map" aria-label="Interactive urban cooling map"></div>
+        <div class="map-caption">
+          Base map: HOT OpenStreetMap. Analytical overlays: GeoServer WMS,
+          plus local GeoTIFF and GeoJSON data.
+        </div>
+      </section>
+
+      <section class="stats-grid">
+        <div class="card">
+          <h2 class="section-title">Buffer Coverage</h2>
+          <div class="chart-wrap">
+            <canvas id="bufferChart"
+              aria-label="Pie chart of inside and outside buffer area"></canvas>
+          </div>
+          <div id="chartNote" class="legend-note">
+            Waiting for area statistics.
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="section-title">Area Statistics Table</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Parameter</th><th>Area (km²)</th><th>Share</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Total study extent</td><td id="tableTotal">—</td><td>100%</td></tr>
+                <tr><td>Inside buffer</td><td id="tableBuffer">—</td><td id="tableBufferPct">—</td></tr>
+                <tr><td>Outside buffer</td><td id="tableOutside">—</td><td id="tableOutsidePct">—</td></tr>
+                <tr class="total-row"><td>Total</td><td id="tableCheck">—</td><td>100%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="legend-note" id="tableNote">
+            Area statistics have not been calculated yet.
+          </div>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <div class="footer">
+    Data sources: local raster and vector datasets, GeoServer WMS and OpenStreetMap.
+    Areas are estimated from GeoJSON geometry using Turf.js.
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.fullscreen/Control.FullScreen.js"></script>
+
+<script>
+"use strict";
+
+// -----------------------------------------------------
+// 1. CONFIGURATION
+// -----------------------------------------------------
+
+const geoserverURL = "http://localhost:8080/geoserver/wms";
+const workspace = "WEB-GIS";
+
+// IMPORTANT: adjust these paths if your file extensions differ.
+const localRasterURL = "./rasters/Raster1.tif";
+const localVectorURL = "./rasters/Buff.geojson";
+
+const layerNames = {
+  buffer: "BUF_CLIP2",
+  green: "clip_green1",
+  lst: "clip_lst1"
+};
+
+const studyAreaBounds = L.latLngBounds(
+  [17.313946102082205, 78.37615634855885],
+  [17.48380652498885, 78.54889937626311]
+);
+
+const studyExtent = turf.polygon([[
+  [78.37615634855885, 17.313946102082205],
+  [78.54889937626311, 17.313946102082205],
+  [78.54889937626311, 17.48380652498885],
+  [78.37615634855885, 17.48380652498885],
+  [78.37615634855885, 17.313946102082205]
+]]);
+
+// -----------------------------------------------------
+// 2. BASE MAP
+// -----------------------------------------------------
+
+const osmBase = L.tileLayer(
+  "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+  {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors | HOT style"
+  }
+);
+
+// -----------------------------------------------------
+// 3. GEOSERVER WMS LAYERS
+// -----------------------------------------------------
+
+function createWMSLayer(name, opacity) {
+  return L.tileLayer.wms(geoserverURL, {
+    layers: workspace + ":" + name,
+    format: "image/png",
+    transparent: true,
+    version: "1.1.1",
+    opacity: opacity
+  });
+}
+
+const bufferLayer = createWMSLayer(layerNames.buffer, 0.8);
+const greenLayer = createWMSLayer(layerNames.green, 0.9);
+const lstLayer = createWMSLayer(layerNames.lst, 0.8);
+
+// -----------------------------------------------------
+// 4. LOCAL LAYERS
+// -----------------------------------------------------
+
+const localRasterLayer = L.layerGroup();
+const localBuffLayer = L.geoJSON(null, {
+  style: {
+    color: "#f97316",
+    weight: 2,
+    fillColor: "#fb923c",
+    fillOpacity: 0.25
+  }
+});
+
+let localBufferGeoJSON = null;
+let localRasterRenderer = null;
+
+// -----------------------------------------------------
+// 5. INITIALIZE MAP
+// -----------------------------------------------------
+
+const map = L.map("map", {
+  zoomControl: true,
+  layers: [
+    osmBase, bufferLayer, greenLayer, lstLayer,
+    localRasterLayer, localBuffLayer
+  ]
+});
+
+map.addControl(new L.Control.Fullscreen({
+  title: {
+    false: "View Fullscreen",
+    true: "Exit Fullscreen"
+  }
+}));
+
+L.control.scale({ imperial: false }).addTo(map);
+
+L.control.layers(
+  { "HOT OpenStreetMap": osmBase },
+  {
+    "GeoServer Buffer": bufferLayer,
+    "GeoServer Green Space": greenLayer,
+    "GeoServer LST": lstLayer,
+    "Local Raster1.tif": localRasterLayer,
+    "Local Buff Vector": localBuffLayer
+  },
+  { collapsed: false, position: "topright" }
+).addTo(map);
+
+map.fitBounds(studyAreaBounds, { padding: [20, 20], maxZoom: 15 });
+
+// -----------------------------------------------------
+// 6. MAP CONTROLS
+// -----------------------------------------------------
+
+function updateStatus(message, isError = false) {
+  const el = document.getElementById("status");
+  el.textContent = message;
+  el.classList.toggle("error", isError);
+}
+
+function resetMap() {
+  map.fitBounds(studyAreaBounds, { padding: [20, 20], maxZoom: 15 });
+  updateStatus("Map reset to the study extent.");
+}
+
+function toggleLayer(layer, enabled) {
+  if (enabled) layer.addTo(map);
+  else map.removeLayer(layer);
+}
+
+function showAllLayers() {
+  [
+    bufferLayer, greenLayer, lstLayer,
+    localRasterLayer, localBuffLayer
+  ].forEach(layer => layer.addTo(map));
+
+  [
+    "bufferToggle", "greenToggle", "lstToggle",
+    "rasterToggle", "localBuffToggle"
+  ].forEach(id => document.getElementById(id).checked = true);
+
+  updateStatus("All overlays enabled.");
+}
+
+function hideAllLayers() {
+  [
+    bufferLayer, greenLayer, lstLayer,
+    localRasterLayer, localBuffLayer
+  ].forEach(layer => map.removeLayer(layer));
+
+  [
+    "bufferToggle", "greenToggle", "lstToggle",
+    "rasterToggle", "localBuffToggle"
+  ].forEach(id => document.getElementById(id).checked = false);
+
+  updateStatus("All overlays hidden.");
+}
+
+function setOpacity(layer, value, event) {
+  layer.setOpacity(Number(value) / 100);
+  updateSliderLabel(event, value);
+}
+
+function setRasterOpacity(layerGroup, value, event) {
+  layerGroup.eachLayer(layer => {
+    if (typeof layer.setOpacity === "function") {
+      layer.setOpacity(Number(value) / 100);
+    }
+  });
+  updateSliderLabel(event, value);
+}
+
+function setVectorOpacity(layer, value, event) {
+  const opacity = Number(value) / 100;
+  layer.setStyle({
+    opacity: opacity,
+    fillOpacity: opacity * 0.35
+  });
+  updateSliderLabel(event, value);
+}
+
+function updateSliderLabel(event, value) {
+  const slider = event && event.target;
+  const label = slider &&
+    slider.parentElement.querySelector(".small-label span:last-child");
+  if (label) label.textContent = value + "%";
+}
+
+map.on("click", event => {
+  const lat = event.latlng.lat.toFixed(6);
+  const lng = event.latlng.lng.toFixed(6);
+
+  L.popup()
+    .setLatLng(event.latlng)
+    .setContent(
+      "<b>Clicked location</b><br>Latitude: " + lat +
+      "<br>Longitude: " + lng
+    )
+    .openOn(map);
+
+  updateStatus("Latitude: " + lat + " | Longitude: " + lng);
+});
+
+// -----------------------------------------------------
+// 7. LOAD LOCAL GEOTIFF
+// -----------------------------------------------------
+
+function stretchValue(value, min, max) {
+  if (!Number.isFinite(value)) return 0;
+
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    return Math.max(0, Math.min(255, value));
+  }
+
+  return Math.round(
+    Math.max(0, Math.min(1, (value - min) / (max - min))) * 255
+  );
+}
+
+function makeRasterColorFunction(georaster) {
+  const mins = georaster.mins || [];
+  const maxs = georaster.maxs || [];
+  const noData = georaster.noDataValue;
+  const bandCount = georaster.numberOfRasters || 1;
+
+  return function (values) {
+    if (!values || values.length === 0) return null;
+    if (values.every(v => v === null || v === undefined || !Number.isFinite(v))) {
+      return null;
+    }
+    if (noData !== null && noData !== undefined && values[0] === noData) {
+      return null;
+    }
+
+    // Display multiband imagery using its first three bands as RGB.
+    if (bandCount >= 3 && values.length >= 3) {
+      const r = stretchValue(values[0], mins[0], maxs[0]);
+      const g = stretchValue(values[1], mins[1], maxs[1]);
+      const b = stretchValue(values[2], mins[2], maxs[2]);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // Single-band rasters use a grayscale stretch.
+    const gray = stretchValue(values[0], mins[0], maxs[0]);
+    return `rgb(${gray},${gray},${gray})`;
+  };
+}
+
+async function loadLocalRaster() {
+  try {
+    updateStatus("Loading local Raster1.tif...");
+
+    const response = await fetch(localRasterURL);
+    if (!response.ok) {
+      throw new Error(
+        "Cannot read " + localRasterURL +
+        " (HTTP " + response.status + "). Check the exact filename."
+      );
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const georaster = await parseGeoraster(arrayBuffer);
+
+    localRasterRenderer = new GeoRasterLayer({
+      georaster: georaster,
+      opacity: 0.85,
+      resolution: 256,
+      pixelValuesToColorFn: makeRasterColorFunction(georaster)
+    });
+
+    localRasterLayer.addLayer(localRasterRenderer);
+
+    console.log("Local raster metadata:", {
+      width: georaster.width,
+      height: georaster.height,
+      projection: georaster.projection,
+      bands: georaster.numberOfRasters,
+      noDataValue: georaster.noDataValue,
+      bounds: localRasterRenderer.getBounds()
+    });
+
+    updateStatus("Raster1.tif loaded. Check the console for raster metadata.");
+  } catch (error) {
+    console.error("Local GeoTIFF error:", error);
+    updateStatus("Raster loading failed: " + error.message, true);
+  }
+}
+
+// -----------------------------------------------------
+// 8. LOAD LOCAL VECTOR
+// -----------------------------------------------------
+
+async function loadLocalVector() {
+  try {
+    updateStatus("Loading local Buff.geojson...");
+
+    const response = await fetch(localVectorURL);
+    if (!response.ok) {
+      throw new Error(
+        "Cannot read " + localVectorURL +
+        " (HTTP " + response.status + "). Check the vector format and filename."
+      );
+    }
+
+    const geojson = await response.json();
+
+    if (!geojson || !geojson.features) {
+      throw new Error("The local vector is not valid GeoJSON.");
+    }
+
+    localBufferGeoJSON = geojson;
+    localBuffLayer.addData(geojson);
+
+    console.log("Local vector loaded:", {
+      featureCount: geojson.features.length,
+      bounds: localBuffLayer.getBounds()
+    });
+
+    updateStatus("Buff.geojson loaded successfully.");
+  } catch (error) {
+    console.error("Local vector error:", error);
+    updateStatus("Vector loading failed: " + error.message, true);
+  }
+}
+
+// -----------------------------------------------------
+// 9. AREA STATISTICS AND PIE CHART
+// -----------------------------------------------------
+
+let bufferChart = null;
+
+function showAreaStatistics(totalM2, bufferM2) {
+  const total = totalM2 / 1e6;
+  const inside = Math.min(total, Math.max(0, bufferM2 / 1e6));
+  const outside = Math.max(0, total - inside);
+
+  const insidePct = total > 0 ? inside / total * 100 : 0;
+  const outsidePct = total > 0 ? outside / total * 100 : 0;
+
+  document.getElementById("totalArea").textContent = total.toFixed(3) + " km²";
+  document.getElementById("bufferArea").textContent = inside.toFixed(3) + " km²";
+  document.getElementById("outsideArea").textContent = outside.toFixed(3) + " km²";
+  document.getElementById("bufferPercent").textContent = insidePct.toFixed(2) + "%";
+
+  document.getElementById("tableTotal").textContent = total.toFixed(3);
+  document.getElementById("tableBuffer").textContent = inside.toFixed(3);
+  document.getElementById("tableOutside").textContent = outside.toFixed(3);
+  document.getElementById("tableBufferPct").textContent = insidePct.toFixed(2) + "%";
+  document.getElementById("tableOutsidePct").textContent = outsidePct.toFixed(2) + "%";
+  document.getElementById("tableCheck").textContent = (inside + outside).toFixed(3);
+
+  document.getElementById("chartNote").textContent =
+    "Inside buffer: " + insidePct.toFixed(2) +
+    "%. Outside buffer: " + outsidePct.toFixed(2) + "%.";
+
+  document.getElementById("tableNote").textContent =
+    "Calculated from the study extent and local buffer vector.";
+
+  const ctx = document.getElementById("bufferChart");
+  if (bufferChart) bufferChart.destroy();
+
+  bufferChart = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: ["Inside Buffer", "Outside Buffer"],
+      datasets: [{
+        data: [inside, outside],
+        backgroundColor: ["#16a34a", "#cbd5e1"],
+        borderColor: ["#15803d", "#94a3b8"],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const value = context.parsed;
+              const pct = total > 0 ? value / total * 100 : 0;
+              return context.label + ": " + value.toFixed(3) +
+                " km² (" + pct.toFixed(2) + "%)";
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+async function loadStatistics() {
+  const totalM2 = turf.area(studyExtent);
+  document.getElementById("totalArea").textContent =
+    (totalM2 / 1e6).toFixed(3) + " km²";
+
+  if (!localBufferGeoJSON || !localBufferGeoJSON.features) {
+    document.getElementById("bufferArea").textContent = "Unavailable";
+    document.getElementById("outsideArea").textContent = "Unavailable";
+    document.getElementById("bufferPercent").textContent = "Unavailable";
+    updateStatus(
+      "Statistics need Buff.geojson. Check the vector filename and format.",
+      true
+    );
+    return;
+  }
+
+  try {
+    const polygons = localBufferGeoJSON.features.filter(feature =>
+      feature.geometry &&
+      ["Polygon", "MultiPolygon"].includes(feature.geometry.type)
+    );
+
+    if (polygons.length === 0) {
+      throw new Error("The local vector contains no polygon features.");
+    }
+
+    const bufferCollection = turf.featureCollection(polygons);
+    let bufferUnion;
+
+    if (bufferCollection.features.length === 1) {
+      bufferUnion = bufferCollection.features[0];
+    } else {
+      bufferUnion = turf.union(bufferCollection);
+    }
+
+    if (!bufferUnion) {
+      throw new Error("Could not merge the buffer polygons.");
+    }
+
+    const clipped = turf.intersect(
+      turf.featureCollection([bufferUnion, studyExtent])
+    );
+
+    const bufferM2 = clipped ? turf.area(clipped) : 0;
+
+    showAreaStatistics(totalM2, Math.min(bufferM2, totalM2));
+    updateStatus("Statistics calculated using the local buffer vector.");
+  } catch (error) {
+    console.error("Statistics error:", error);
+    document.getElementById("bufferArea").textContent = "Unavailable";
+    document.getElementById("outsideArea").textContent = "Unavailable";
+    document.getElementById("bufferPercent").textContent = "Unavailable";
+    updateStatus("Statistics failed: " + error.message, true);
+  }
+}
+
+// -----------------------------------------------------
+// 10. STARTUP
+// -----------------------------------------------------
+
+async function initializeDashboard() {
+  await Promise.all([
+    loadLocalRaster(),
+    loadLocalVector()
+  ]);
+
+  await loadStatistics();
+}
+
+initializeDashboard();
+</script>
+</body>
+</html>

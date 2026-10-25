@@ -1,0 +1,1510 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyderabad Urban Climate | WebGIS</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+<script src="https://unpkg.com/georaster"></script>
+<script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
+
+<style>
+:root {
+  --bg: #0b1415;
+  --panel: #121f20;
+  --panel2: #172627;
+  --border: #293b3a;
+  --text: #edf5ee;
+  --muted: #92a7a1;
+  --green: #72e0a0;
+  --green2: #2a9d70;
+  --cyan: #64d6d0;
+  --orange: #f4b66a;
+  --red: #f07872;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "DM Sans", sans-serif;
+}
+
+button, input { font: inherit; }
+
+button { cursor: pointer; }
+
+.app-header {
+  padding: 20px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--border);
+  background: #101c1d;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.brand-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 25px;
+  color: #071c13;
+  background: linear-gradient(135deg, #9cf4b9, #38b98d);
+}
+
+.brand h1 {
+  font-family: "Space Grotesk", sans-serif;
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -.5px;
+}
+
+.brand p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  border: 1px solid var(--border);
+  background: #182827;
+  color: #c7d7d0;
+  padding: 8px 11px;
+  border-radius: 30px;
+  font-size: 11px;
+}
+
+.pill.live::before {
+  content: "";
+  display: inline-block;
+  height: 7px;
+  width: 7px;
+  margin-right: 7px;
+  background: var(--green);
+  border-radius: 50%;
+}
+
+.demo-pill {
+  color: #ffd58e;
+  border-color: #69502c;
+  background: #30281b;
+}
+
+.page {
+  max-width: 1800px;
+  margin: auto;
+  padding: 22px;
+}
+
+.intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.intro h2 {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(24px, 3vw, 34px);
+  margin: 8px 0;
+  letter-spacing: -1px;
+}
+
+.intro p {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.button {
+  background: var(--green);
+  color: #092016;
+  border: 0;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 12px;
+  border-radius: 9px;
+}
+
+.button:hover { filter: brightness(1.1); }
+
+.button.secondary {
+  background: #223432;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.kpi {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: linear-gradient(145deg, #182827, #111c1d);
+  min-width: 0;
+}
+
+.kpi-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.kpi-icon {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  border-radius: 10px;
+  font-size: 17px;
+  background: #233a31;
+}
+
+.kpi-value {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(23px, 2.5vw, 31px);
+  font-weight: 700;
+  margin: 15px 0 7px;
+  letter-spacing: -1px;
+  overflow-wrap: anywhere;
+}
+
+.kpi-foot {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.green-text { color: var(--green); }
+.cyan-text { color: var(--cyan); }
+.orange-text { color: var(--orange); }
+
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(280px, .8fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panel-head {
+  padding: 17px 19px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-head h3 {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 15px;
+  margin: 0;
+}
+
+.panel-head p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.panel-body { padding: 17px; }
+
+#map {
+  width: 100%;
+  height: 520px;
+  background: #dce6df;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.layer-list { display: grid; gap: 13px; }
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.layer-row label { flex: 1; cursor: pointer; }
+
+.layer-row input[type="checkbox"] {
+  accent-color: var(--green);
+  width: 15px;
+  height: 15px;
+}
+
+.layer-symbol {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+
+.layer-symbol.boundary {
+  border: 2px solid #f4d35e;
+  background: transparent;
+}
+
+.layer-symbol.park { background: #39c779; }
+.layer-symbol.point { background: #a78bfa; }
+.layer-symbol.heat { background: #f07872; }
+.layer-symbol.buffer { background: #64d6d0; }
+
+.opacity-row {
+  display: grid;
+  grid-template-columns: 1fr 85px;
+  gap: 10px;
+  align-items: center;
+  margin-top: 7px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--green);
+}
+
+.section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 2px 0 15px;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 19px 0;
+}
+
+.status-list { display: grid; gap: 12px; }
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  flex: 0 0 auto;
+}
+
+.status-dot.demo { background: var(--orange); }
+.status-name { flex: 1; color: #d7e5de; }
+.status-text { color: var(--muted); font-size: 10px; }
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.chart-box {
+  height: 260px;
+  position: relative;
+}
+
+.chart-note {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+
+.table-wrap { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+th, td {
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: var(--muted);
+  font-weight: 500;
+  background: #172525;
+}
+
+tr:last-child td { border-bottom: 0; }
+
+.data-tag {
+  display: inline-block;
+  border-radius: 20px;
+  padding: 5px 8px;
+  background: #203a2d;
+  color: #9ef0bb;
+  font-size: 10px;
+}
+
+.data-tag.demo {
+  background: #382e1e;
+  color: #ffd58e;
+}
+
+.notice {
+  padding: 14px 16px;
+  background: #29251c;
+  border: 1px solid #57472b;
+  border-radius: 11px;
+  color: #e9d5ad;
+  font-size: 11px;
+  line-height: 1.65;
+  margin-top: 16px;
+}
+
+footer {
+  padding: 22px 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #172627;
+  color: #edf5ee;
+}
+
+.leaflet-popup-content {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+}
+
+.leaflet-control-layers {
+  border: 0 !important;
+  border-radius: 8px !important;
+  color: #1c2b27;
+}
+
+@media (max-width: 1050px) {
+  .main-grid { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 650px) {
+  .app-header { padding: 15px; align-items: flex-start; }
+  .brand h1 { font-size: 17px; }
+  .header-right { display: none; }
+  .page { padding: 12px; }
+  .intro { align-items: flex-start; flex-direction: column; }
+  .chart-grid { grid-template-columns: 1fr; }
+  #map { height: 410px; }
+  .kpi { padding: 13px; }
+}
+</style>
+</head>
+
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-icon">🌿</div>
+    <div>
+      <h1>Urban Climate Explorer</h1>
+      <p>HYDERABAD · UGS / UHI MONITORING</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="pill live">WebGIS dashboard</span>
+    <span class="pill">GHMC study area</span>
+    <span class="pill demo-pill" id="modePill">DEMO DATA ENABLED</span>
+  </div>
+</header>
+
+<div class="page">
+
+  <section class="intro">
+    <div>
+      <div class="eyebrow">Geospatial intelligence · 2025 study period</div>
+      <h2>Green spaces & urban heat</h2>
+      <p>Explore vegetation distribution, surface temperature, parks and potential cooling patterns across Hyderabad.</p>
+    </div>
+    <div>
+      <button class="button" onclick="zoomToArea()">⌖ Zoom to study area</button>
+      <button class="button secondary" onclick="resetView()">Reset view</button>
+    </div>
+  </section>
+
+  <section class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-top">
+        <span class="kpi-label">Mapped green space</span>
+        <span class="kpi-icon">🌳</span>
+      </div>
+      <div class="kpi-value green-text" id="greenKpi">—</div>
+      <div class="kpi-foot" id="greenFoot">Green-space area · hectares</div>
+    </div>
+
+    <div class="kpi">
+      <div class="kpi-top">
+        <span class="kpi-label">Mean surface temperature</span>
+        <span class="kpi-icon">🌡️</span>
+      </div>
+      <div class="kpi-value orange-text" id="lstKpi">—</div>
+      <div class="kpi-foot">Land surface temperature · °C</div>
+    </div>
+
+    <div class="kpi">
+      <div class="kpi-top">
+        <span class="kpi-label">Park locations</span>
+        <span class="kpi-icon">📍</span>
+      </div>
+      <div class="kpi-value cyan-text" id="parkKpi">—</div>
+      <div class="kpi-foot">Features loaded from park dataset</div>
+    </div>
+
+    <div class="kpi">
+      <div class="kpi-top">
+        <span class="kpi-label">Green vs less-green difference</span>
+        <span class="kpi-icon">❄️</span>
+      </div>
+      <div class="kpi-value green-text" id="coolKpi">—</div>
+      <div class="kpi-foot">Illustrative temperature contrast · °C</div>
+    </div>
+  </section>
+
+  <section class="main-grid">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Spatial analysis map</h3>
+          <p>Toggle map layers and inspect individual features</p>
+        </div>
+        <span class="pill" id="mapStatus">Initializing</span>
+      </div>
+      <div id="map"></div>
+      <div class="map-legend">
+        <span class="legend-item"><span class="swatch" style="background:#f4d35e"></span>GHMC boundary</span>
+        <span class="legend-item"><span class="swatch" style="background:#39c779"></span>Parks</span>
+        <span class="legend-item"><span class="swatch" style="background:#a78bfa"></span>Points</span>
+        <span class="legend-item"><span class="swatch" style="background:#f07872"></span>Illustrative heat</span>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Layer manager</h3>
+          <p>Manage visibility and transparency</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="section-title">Local datasets</div>
+        <div class="layer-list">
+          <div>
+            <div class="layer-row">
+              <span class="layer-symbol boundary"></span>
+              <label for="boundaryToggle">GHMC boundary</label>
+              <input type="checkbox" id="boundaryToggle" checked>
+            </div>
+          </div>
+          <div>
+            <div class="layer-row">
+              <span class="layer-symbol park"></span>
+              <label for="parkToggle">Park polygons</label>
+              <input type="checkbox" id="parkToggle" checked>
+            </div>
+            <div class="opacity-row">
+              <span>Polygon opacity</span>
+              <input type="range" id="parkOpacity" min="0.1" max="1" step="0.1" value="0.8">
+            </div>
+          </div>
+          <div>
+            <div class="layer-row">
+              <span class="layer-symbol point"></span>
+              <label for="pointToggle">Point locations</label>
+              <input type="checkbox" id="pointToggle" checked>
+            </div>
+          </div>
+          <div>
+            <div class="layer-row">
+              <span class="layer-symbol heat"></span>
+              <label for="heatToggle">Demo temperature points</label>
+              <input type="checkbox" id="heatToggle" checked>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-title">GeoServer WMS layers</div>
+        <div class="layer-list">
+          <div>
+            <div class="layer-row">
+              <span class="layer-symbol buffer"></span>
+              <label for="bufferToggle">Buffer / analysis zones</label>
+              <input type="checkbox" id="bufferToggle">
+            </div>
+            <div class="opacity-row">
+              <span>Opacity</span>
+              <input type="range" id="bufferOpacity" min="0.1" max="1" step="0.1" value="0.65">
+            </div>
+          </div>
+          <div>
+            <div class="layer-row">
+              <span class="layer-symbol park"></span>
+              <label for="greenToggle">Green-space WMS</label>
+              <input type="checkbox" id="greenToggle">
+            </div>
+            <div class="opacity-row">
+              <span>Opacity</span>
+              <input type="range" id="greenOpacity" min="0.1" max="1" step="0.1" value="0.8">
+            </div>
+          </div>
+          <div>
+            <div class="layer-row">
+              <span class="layer-symbol heat"></span>
+              <label for="lstToggle">LST WMS</label>
+              <input type="checkbox" id="lstToggle">
+            </div>
+            <div class="opacity-row">
+              <span>Opacity</span>
+              <input type="range" id="lstOpacity" min="0.1" max="1" step="0.1" value="0.7">
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-title">Dataset health</div>
+        <div class="status-list" id="statusList"></div>
+
+        <div class="divider"></div>
+        <button class="button secondary" style="width:100%" onclick="downloadReport()">Export summary CSV</button>
+      </div>
+    </aside>
+  </section>
+
+  <section class="chart-grid">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Green vs less-green areas</h3>
+          <p>Illustrative vegetation and temperature comparison</p>
+        </div>
+        <span class="pill">NDVI / LST</span>
+      </div>
+      <div class="panel-body">
+        <div class="chart-box"><canvas id="comparisonChart"></canvas></div>
+        <p class="chart-note">Actual green and less-green temperature statistics require valid Landsat LST and NDVI outputs. Demo values are used when these outputs are not connected.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Land-cover composition</h3>
+          <p>Illustrative area breakdown</p>
+        </div>
+        <span class="pill">Area share</span>
+      </div>
+      <div class="panel-body">
+        <div class="chart-box"><canvas id="coverChart"></canvas></div>
+        <p class="chart-note">Composition values are simulated placeholders, not a classified land-cover result.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-top:16px">
+    <div class="panel-head">
+      <div>
+        <h3>Dataset inventory</h3>
+        <p>Loaded local data and demo fallbacks</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Dataset</th>
+            <th>Source</th>
+            <th>Status</th>
+            <th>Features / value</th>
+          </tr>
+        </thead>
+        <tbody id="dataTable"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="notice">
+    <strong>Research data notice:</strong> Values marked DEMO are simulated solely to keep the dashboard populated while data are unavailable. They must not be reported as measured Hyderabad conditions. The fallback boundary is only an approximate extent, not the official GHMC boundary. Replace demo data with validated outputs before using this dashboard for research conclusions.
+  </div>
+
+  <footer>
+    <span>Urban Climate Explorer · Hyderabad WebGIS prototype</span>
+    <span>Leaflet · Chart.js · GeoJSON · GeoServer WMS</span>
+  </footer>
+
+</div>
+
+<script>
+// =========================================================
+// 1. CONFIGURATION — UPDATE THESE PATHS IF NEEDED
+// =========================================================
+
+const PATHS = {
+  boundary: "./rasters/GHMC_Boundary.geojson",
+  parks: "./rasters/Park_Point/Park.geojson",
+  points: "./rasters/Park_Point/Point.geojson",
+  raster: "./rasters/Raster1.tif"
+};
+
+const GEOSERVER = "http://localhost:8080/geoserver/ows";
+
+const WMS_NAMES = {
+  buffer: "WEB-GIS:BUF_CLIP2",
+  green: "WEB-GIS:clip_green1",
+  lst: "WEB-GIS:clip_lst1"
+};
+
+// Approximate Hyderabad extent used only if the boundary file is missing.
+// This rectangle is NOT the official GHMC boundary.
+const FALLBACK_BOUNDS = [
+  [17.30, 78.25],
+  [17.56, 78.64]
+];
+
+const DEMO = {
+  greenAreaHa: 18450,
+  meanLST: 34.8,
+  greenTemp: 32.1,
+  lessGreenTemp: 36.4,
+  greenShare: 24,
+  builtShare: 58,
+  otherShare: 18
+};
+
+// =========================================================
+// 2. MAP
+// =========================================================
+
+const map = L.map("map", {
+  zoomControl: false,
+  preferCanvas: true
+}).setView([17.385, 78.487], 11);
+
+L.control.zoom({ position: "bottomright" }).addTo(map);
+
+const baseLayer = L.tileLayer(
+  "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+  {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+  }
+).addTo(map);
+
+const boundaryGroup = L.layerGroup().addTo(map);
+const parksGroup = L.layerGroup().addTo(map);
+const pointsGroup = L.layerGroup().addTo(map);
+const heatGroup = L.layerGroup().addTo(map);
+
+const wmsLayers = {
+  buffer: L.tileLayer.wms(GEOSERVER, {
+    layers: WMS_NAMES.buffer,
+    format: "image/png",
+    transparent: true,
+    version: "1.1.1",
+    opacity: 0.65
+  }),
+  green: L.tileLayer.wms(GEOSERVER, {
+    layers: WMS_NAMES.green,
+    format: "image/png",
+    transparent: true,
+    version: "1.1.1",
+    opacity: 0.8
+  }),
+  lst: L.tileLayer.wms(GEOSERVER, {
+    layers: WMS_NAMES.lst,
+    format: "image/png",
+    transparent: true,
+    version: "1.1.1",
+    opacity: 0.7
+  })
+};
+
+const overlayControl = L.control.layers(
+  { "OpenStreetMap": baseLayer },
+  {
+    "GHMC boundary": boundaryGroup,
+    "Park polygons": parksGroup,
+    "Point locations": pointsGroup,
+    "Demo temperature points": heatGroup,
+    "Buffer / analysis zones": wmsLayers.buffer,
+    "Green-space WMS": wmsLayers.green,
+    "LST WMS": wmsLayers.lst
+  },
+  { collapsed: true, position: "topright" }
+).addTo(map);
+
+// =========================================================
+// 3. APP STATE AND DATA INVENTORY
+// =========================================================
+
+const state = {
+  boundary: "Loading",
+  parks: "Loading",
+  points: "Loading",
+  raster: "Not loaded",
+  buffer: "Not checked",
+  green: "Not checked",
+  lst: "Not checked",
+  demoUsed: false,
+  parkCount: 0,
+  pointCount: 0,
+  parkAreaHa: 0,
+  greenAreaHa: DEMO.greenAreaHa,
+  meanLST: DEMO.meanLST,
+  greenTemp: DEMO.greenTemp,
+  lessGreenTemp: DEMO.lessGreenTemp
+};
+
+function markDemo() {
+  state.demoUsed = true;
+  document.getElementById("modePill").textContent = "DEMO DATA IN USE";
+  document.getElementById("modePill").classList.add("demo-pill");
+}
+
+function statusLabel(status) {
+  if (status.toLowerCase().includes("demo") ||
+      status.toLowerCase().includes("approx")) {
+    return '<span class="data-tag demo">' + status + '</span>';
+  }
+  return '<span class="data-tag">' + status + '</span>';
+}
+
+function updateInventory() {
+  const rows = [
+    ["GHMC boundary", "Local GeoJSON", state.boundary, "Study area geometry"],
+    ["Park polygons", "Local GeoJSON", state.parks, state.parkCount + " features"],
+    ["Point locations", "Local GeoJSON", state.points, state.pointCount + " features"],
+    ["GeoTIFF raster", "Local GeoTIFF", state.raster, "Raster1.tif"],
+    ["Buffer / analysis zones", "GeoServer WMS", state.buffer, WMS_NAMES.buffer],
+    ["Green-space layer", "GeoServer WMS", state.green, WMS_NAMES.green],
+    ["LST layer", "GeoServer WMS", state.lst, WMS_NAMES.lst]
+  ];
+
+  document.getElementById("dataTable").innerHTML = rows.map(row =>
+    "<tr>" +
+    "<td>" + row[0] + "</td>" +
+    "<td>" + row[1] + "</td>" +
+    "<td>" + statusLabel(row[2]) + "</td>" +
+    "<td>" + row[3] + "</td>" +
+    "</tr>"
+  ).join("");
+
+  const statusItems = [
+    ["Boundary", state.boundary],
+    ["Parks", state.parks],
+    ["Point locations", state.points],
+    ["GeoTIFF", state.raster],
+    ["GeoServer", [state.buffer, state.green, state.lst].some(s => s === "Available") ? "Available" : "Not verified"]
+  ];
+
+  document.getElementById("statusList").innerHTML = statusItems.map(item => {
+    const demo = /demo|approx|unavailable|error/i.test(item[1]);
+    return '<div class="status-row">' +
+      '<span class="status-dot ' + (demo ? "demo" : "") + '"></span>' +
+      '<span class="status-name">' + item[0] + '</span>' +
+      '<span class="status-text">' + item[1] + '</span>' +
+      '</div>';
+  }).join("");
+
+  document.getElementById("mapStatus").textContent =
+    state.demoUsed ? "Real + demo layers" : "Map ready";
+}
+
+// =========================================================
+// 4. SAFE GEOJSON LOADER
+// =========================================================
+
+async function getJSON(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("HTTP " + response.status);
+  }
+
+  const json = await response.json();
+  if (!json || !json.type) {
+    throw new Error("Invalid GeoJSON");
+  }
+
+  return json;
+}
+
+function countFeatures(data) {
+  if (data.type === "FeatureCollection") return data.features.length;
+  if (data.type === "Feature") return 1;
+  return 0;
+}
+
+function toFeatureCollection(data) {
+  if (data.type === "FeatureCollection") return data;
+  if (data.type === "Feature") {
+    return { type: "FeatureCollection", features: [data] };
+  }
+  return {
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: {},
+      geometry: data
+    }]
+  };
+}
+
+// =========================================================
+// 5. BOUNDARY — LOAD REAL GEOJSON OR APPROXIMATE EXTENT
+// =========================================================
+
+async function loadBoundary() {
+  try {
+    const data = await getJSON(PATHS.boundary);
+
+    const layer = L.geoJSON(data, {
+      style: {
+        color: "#f4d35e",
+        weight: 3,
+        opacity: 1,
+        fillColor: "#f4d35e",
+        fillOpacity: 0.025
+      },
+      onEachFeature: (feature, featureLayer) => {
+        featureLayer.bindPopup(
+          "<b>GHMC study boundary</b><br>Loaded from your GeoJSON file."
+        );
+      }
+    });
+
+    layer.addTo(boundaryGroup);
+    const bounds = layer.getBounds();
+
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [15, 15] });
+
+    state.boundary = "Loaded";
+    return;
+  } catch (error) {
+    console.warn("Boundary file unavailable; using approximate extent.", error);
+  }
+
+  markDemo();
+
+  const approximate = L.rectangle(FALLBACK_BOUNDS, {
+    color: "#f4d35e",
+    weight: 2,
+    dashArray: "7 7",
+    fillColor: "#f4d35e",
+    fillOpacity: 0.025
+  }).bindPopup(
+    "<b>Approximate Hyderabad extent</b><br>This is simulated fallback geometry, not the official GHMC boundary."
+  );
+
+  approximate.addTo(boundaryGroup);
+  map.fitBounds(approximate.getBounds(), { padding: [15, 15] });
+  state.boundary = "Demo approximate extent";
+}
+
+// =========================================================
+// 6. PARKS — REAL GEOJSON OR SIMULATED FEATURES
+// =========================================================
+
+function makeDemoParks() {
+  const features = [];
+  const locations = [
+    [78.4867, 17.4239, "Central Green Park"],
+    [78.4011, 17.4401, "Westside Urban Park"],
+    [78.5122, 17.3616, "Southern Green Space"],
+    [78.5450, 17.4480, "Eastern Neighbourhood Park"],
+    [78.4650, 17.3900, "Lakefront Green"],
+    [78.4300, 17.4100, "Community Park"],
+    [78.5000, 17.4700, "Northern Green Space"],
+    [78.3850, 17.3800, "Urban Woodland"]
+  ];
+
+  locations.forEach((loc, i) => {
+    const x = loc[0], y = loc[1];
+    const dx = 0.0025 + (i % 3) * 0.0006;
+    const dy = 0.0018 + (i % 2) * 0.0005;
+
+    features.push({
+      type: "Feature",
+      properties: {
+        name: loc[2],
+        data_type: "SIMULATED DEMO",
+        area_ha: 12 + i * 4
+      },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[
+          [x - dx, y - dy],
+          [x + dx, y - dy],
+          [x + dx, y + dy],
+          [x - dx, y + dy],
+          [x - dx, y - dy]
+        ]]
+      }
+    });
+  });
+
+  return { type: "FeatureCollection", features };
+}
+
+function featureName(feature, fallback) {
+  const p = feature.properties || {};
+  return p.name || p.NAME || p.park_name || p.id || fallback;
+}
+
+async function loadParks() {
+  let data;
+  let isDemo = false;
+
+  try {
+    data = await getJSON(PATHS.parks);
+    state.parks = "Loaded";
+  } catch (error) {
+    console.warn("Park file unavailable; using simulated parks.", error);
+    data = makeDemoParks();
+    state.parks = "Demo fallback";
+    isDemo = true;
+    markDemo();
+  }
+
+  const collection = toFeatureCollection(data);
+
+  const layer = L.geoJSON(collection, {
+    style: {
+      color: "#35c779",
+      weight: 1.5,
+      fillColor: "#35c779",
+      fillOpacity: 0.8
+    },
+    onEachFeature: (feature, featureLayer) => {
+      const props = feature.properties || {};
+      const area = turf.area(feature) / 10000;
+
+      featureLayer.bindPopup(
+        "<b>" + featureName(feature, "Park") + "</b>" +
+        "<br>Geometry area: " + area.toFixed(2) + " ha" +
+        (isDemo ? "<br><b>SIMULATED DEMO FEATURE</b>" : "")
+      );
+    }
+  });
+
+  layer.addTo(parksGroup);
+
+  state.parkCount = countFeatures(data);
+  let totalArea = 0;
+
+  collection.features.forEach(feature => {
+    if (feature.geometry) {
+      try { totalArea += turf.area(feature) / 10000; }
+      catch (e) { console.warn(e); }
+    }
+  });
+
+  state.parkAreaHa = totalArea;
+
+  document.getElementById("parkKpi").textContent = state.parkCount;
+  document.getElementById("greenKpi").textContent =
+    totalArea.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+
+  document.getElementById("greenFoot").textContent =
+    isDemo ? "Simulated park polygon area · hectares" : "Sum of park polygon areas · hectares";
+
+  if (isDemo) {
+    // The total of demo parks is not a real green-space inventory.
+    state.greenAreaHa = totalArea;
+  } else {
+    state.greenAreaHa = totalArea;
+  }
+
+  updateCoverChart();
+  updateInventory();
+}
+
+// =========================================================
+// 7. POINTS — REAL GEOJSON OR SIMULATED LOCATIONS
+// =========================================================
+
+function makeDemoPoints() {
+  const coords = [
+    [78.4867, 17.3850],
+    [78.4483, 17.4150],
+    [78.5150, 17.3700],
+    [78.4050, 17.4400],
+    [78.5350, 17.4550],
+    [78.4650, 17.4000],
+    [78.4950, 17.4550],
+    [78.3850, 17.3900],
+    [78.5250, 17.4200],
+    [78.4350, 17.3650],
+    [78.4750, 17.4450],
+    [78.5050, 17.3950]
+  ];
+
+  return {
+    type: "FeatureCollection",
+    features: coords.map((c, i) => ({
+      type: "Feature",
+      properties: {
+        name: "Sample point " + (i + 1),
+        data_type: "SIMULATED DEMO"
+      },
+      geometry: { type: "Point", coordinates: c }
+    }))
+  };
+}
+
+async function loadPoints() {
+  let data;
+
+  try {
+    data = await getJSON(PATHS.points);
+    state.points = "Loaded";
+  } catch (error) {
+    console.warn("Point file unavailable; using simulated points.", error);
+    data = makeDemoPoints();
+    state.points = "Demo fallback";
+    markDemo();
+  }
+
+  const collection = toFeatureCollection(data);
+
+  L.geoJSON(collection, {
+    pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+      radius: 5,
+      color: "#ffffff",
+      weight: 1.5,
+      fillColor: "#a78bfa",
+      fillOpacity: 1
+    }),
+    onEachFeature: (feature, featureLayer) => {
+      featureLayer.bindPopup(
+        "<b>" + featureName(feature, "Point location") + "</b>" +
+        (state.points === "Demo fallback"
+          ? "<br>SIMULATED DEMO LOCATION"
+          : "")
+      );
+    }
+  }).addTo(pointsGroup);
+
+  state.pointCount = countFeatures(data);
+  updateInventory();
+}
+
+// =========================================================
+// 8. DEMO TEMPERATURE POINTS
+// =========================================================
+
+function createDemoTemperatureLayer() {
+  markDemo();
+
+  const samples = [
+    [17.4239, 78.4867, 35.8],
+    [17.4401, 78.4011, 33.2],
+    [17.3616, 78.5122, 36.6],
+    [17.4480, 78.5450, 34.7],
+    [17.3900, 78.4650, 32.4],
+    [17.4100, 78.4300, 35.2],
+    [17.4700, 78.5000, 37.1],
+    [17.3800, 78.3850, 33.6],
+    [17.4050, 78.5150, 36.1],
+    [17.4500, 78.4500, 34.1],
+    [17.3500, 78.4750, 35.5],
+    [17.4600, 78.4200, 33.8]
+  ];
+
+  samples.forEach((item, i) => {
+    const temp = item[2];
+    const color = temp >= 36 ? "#f07872" :
+                  temp >= 34 ? "#f4b66a" : "#64d6d0";
+
+    L.circleMarker([item[0], item[1]], {
+      radius: 13 + (temp - 32) * 1.8,
+      color: color,
+      weight: 1,
+      fillColor: color,
+      fillOpacity: 0.24
+    }).bindPopup(
+      "<b>Simulated LST sample " + (i + 1) + "</b>" +
+      "<br>Temperature: " + temp.toFixed(1) + " °C" +
+      "<br><b>DEMO ONLY — not measured data</b>"
+    ).addTo(heatGroup);
+  });
+}
+
+// =========================================================
+// 9. RASTER LOADING — USE REAL TIFF IF AVAILABLE
+// =========================================================
+
+async function loadRaster() {
+  try {
+    const response = await fetch(PATHS.raster);
+    if (!response.ok) throw new Error("Raster file not found");
+
+    if (typeof parseGeoraster !== "function" ||
+        typeof GeoRasterLayer === "undefined") {
+      throw new Error("GeoTIFF rendering library unavailable");
+    }
+
+    const buffer = await response.arrayBuffer();
+    const raster = await parseGeoraster(buffer);
+
+    const rasterLayer = new GeoRasterLayer({
+      georaster: raster,
+      opacity: 0.65,
+      resolution: 256
+    });
+
+    rasterLayer.addTo(map);
+    overlayControl.addOverlay(rasterLayer, "Local GeoTIFF raster");
+
+    state.raster = "Loaded";
+  } catch (error) {
+    console.warn("Raster unavailable:", error);
+    state.raster = "Unavailable — demo points shown";
+  }
+
+  updateInventory();
+}
+
+// =========================================================
+// 10. CHARTS
+// =========================================================
+
+Chart.defaults.color = "#9eb2aa";
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+
+let comparisonChart;
+let coverChart;
+
+function createComparisonChart() {
+  const ctx = document.getElementById("comparisonChart");
+
+  comparisonChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["Greener pixels", "Less-green pixels"],
+      datasets: [{
+        label: "Mean LST (°C)",
+        data: [state.greenTemp, state.lessGreenTemp],
+        backgroundColor: ["#49c98b", "#f07872"],
+        borderRadius: 7,
+        maxBarThickness: 65
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: context => context.parsed.y + " °C (demo if no analysis data)"
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: {
+          min: 0,
+          title: { display: true, text: "Temperature (°C)" },
+          grid: { color: "#263a38" }
+        }
+      }
+    }
+  });
+}
+
+function updateCoverChart() {
+  const ctx = document.getElementById("coverChart");
+
+  if (coverChart) coverChart.destroy();
+
+  coverChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Green / vegetation", "Built-up", "Other"],
+      datasets: [{
+        data: [DEMO.greenShare, DEMO.builtShare, DEMO.otherShare],
+        backgroundColor: ["#49c98b", "#e5a85e", "#527e7a"],
+        borderColor: "#121f20",
+        borderWidth: 5,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "68%",
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { usePointStyle: true, padding: 18 }
+        },
+        tooltip: {
+          callbacks: {
+            label: context => context.label + ": " + context.parsed +
+              "% (simulated)"
+          }
+        }
+      }
+    }
+  });
+}
+
+// =========================================================
+// 11. KPI FALLBACKS
+// =========================================================
+
+function initializeKPIs() {
+  document.getElementById("lstKpi").textContent =
+    DEMO.meanLST.toFixed(1) + " °C";
+
+  document.getElementById("coolKpi").textContent =
+    (DEMO.lessGreenTemp - DEMO.greenTemp).toFixed(1) + " °C";
+
+  state.meanLST = DEMO.meanLST;
+  state.greenTemp = DEMO.greenTemp;
+  state.lessGreenTemp = DEMO.lessGreenTemp;
+
+  markDemo();
+  createComparisonChart();
+  updateCoverChart();
+}
+
+// =========================================================
+// 12. CONTROLS
+// =========================================================
+
+function connectToggle(id, layer) {
+  document.getElementById(id).addEventListener("change", event => {
+    if (event.target.checked) layer.addTo(map);
+    else map.removeLayer(layer);
+  });
+}
+
+connectToggle("boundaryToggle", boundaryGroup);
+connectToggle("parkToggle", parksGroup);
+connectToggle("pointToggle", pointsGroup);
+connectToggle("heatToggle", heatGroup);
+
+function connectOpacity(id, layer, property) {
+  document.getElementById(id).addEventListener("input", event => {
+    const value = Number(event.target.value);
+
+    if (property === "park") {
+      layer.eachLayer(child => {
+        if (child.setStyle) child.setStyle({ fillOpacity: value });
+      });
+    } else {
+      layer.setOpacity(value);
+    }
+  });
+}
+
+connectOpacity("parkOpacity", parksGroup, "park");
+
+[
+  ["bufferToggle", "buffer"],
+  ["greenToggle", "green"],
+  ["lstToggle", "lst"]
+].forEach(([id, name]) => {
+  connectToggle(id, wmsLayers[name]);
+});
+
+[
+  ["bufferOpacity", "buffer"],
+  ["greenOpacity", "green"],
+  ["lstOpacity", "lst"]
+].forEach(([id, name]) => {
+  document.getElementById(id).addEventListener("input", event => {
+    wmsLayers[name].setOpacity(Number(event.target.value));
+  });
+});
+
+// =========================================================
+// 13. MAP BUTTONS
+// =========================================================
+
+function zoomToArea() {
+  const layers = [
+    boundaryGroup,
+    parksGroup,
+    pointsGroup,
+    heatGroup
+  ];
+
+  const bounds = L.latLngBounds([]);
+
+  layers.forEach(group => {
+    if (map.hasLayer(group)) {
+      group.eachLayer(layer => {
+        if (layer.getBounds && layer.getBounds().isValid()) {
+          bounds.extend(layer.getBounds());
+        } else if (layer.getLatLng) {
+          bounds.extend(layer.getLatLng());
+        }
+      });
+    }
+  });
+
+  if (bounds.isValid()) map.fitBounds(bounds, { padding: [18, 18] });
+  else map.fitBounds(FALLBACK_BOUNDS);
+}
+
+function resetView() {
+  map.setView([17.385, 78.487], 11);
+}
+
+// =========================================================
+// 14. EXPORT A SIMPLE SUMMARY CSV
+// =========================================================
+
+function downloadReport() {
+  const rows = [
+    ["Metric", "Value", "Data status"],
+    ["Park features", state.parkCount, state.parks],
+    ["Park polygon area (ha)", state.parkAreaHa.toFixed(2), state.parks],
+    ["Mean LST (C)", state.meanLST, "Demo placeholder unless replaced"],
+    ["Greener pixel mean LST (C)", state.greenTemp, "Demo placeholder unless replaced"],
+    ["Less-green pixel mean LST (C)", state.lessGreenTemp, "Demo placeholder unless replaced"],
+    ["Boundary", state.boundary, state.boundary],
+    ["Raster", state.raster, state.raster]
+  ];
+
+  const csv = rows.map(row =>
+    row.map(value => '"' + String(value).replaceAll('"', '""') + '"').join(",")
+  ).join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "hyderabad_ugs_uhi_dashboard_summary.csv";
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+// =========================================================
+// 15. STARTUP
+// =========================================================
+
+async function startDashboard() {
+  initializeKPIs();
+  createDemoTemperatureLayer();
+
+  // These loaders use real local files when available.
+  // Missing files trigger demo fallbacks where provided.
+  await Promise.allSettled([
+    loadBoundary(),
+    loadParks(),
+    loadPoints(),
+    loadRaster()
+  ]);
+
+  updateInventory();
+
+  document.getElementById("mapStatus").textContent =
+    state.demoUsed ? "Real + demo layers" : "Real data loaded";
+}
+
+startDashboard();
+</script>
+
+</body>
+</html>
